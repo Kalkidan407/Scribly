@@ -1,7 +1,7 @@
 import 'package:flutter/material.dart';
 import '../services/ocr_service.dart';
 import '../screens/result_screen.dart';
-import '../widgets/pdf_service.dart';
+
 class HomeScreen extends StatefulWidget {
   const HomeScreen({super.key});
 
@@ -10,15 +10,39 @@ class HomeScreen extends StatefulWidget {
 }
 
 class _HomeScreenState extends State<HomeScreen> {
-  String? recognizedText;
+  bool isScanning = false;
 
   Future<void> handleScan() async {
-    final text = await OCRService.pickAndRecognizeText();
-    if (text != null && mounted) {
-      Navigator.push(
-        context,
-        MaterialPageRoute(builder: (_) => ResultScreen(text: text)),
-      );
+    if (isScanning) return; // prevent multiple scans at once
+    setState(() => isScanning = true);
+
+    try {
+      final text = await OCRService.pickAndRecognizeText();
+      if (text != null && text.isNotEmpty && mounted) {
+        // Navigate safely
+        Future.microtask(() {
+          Navigator.push(
+            context,
+            MaterialPageRoute(builder: (_) => ResultScreen(text: text)),
+          );
+        });
+      } else {
+        // Show message if no text found
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(content: Text('No text detected. Please try again.')),
+          );
+        }
+      }
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('Error scanning text: $e')),
+        );
+        print('Error scanning text : $e ');
+      }
+    } finally {
+      if (mounted) setState(() => isScanning = false);
     }
   }
 
@@ -26,16 +50,17 @@ class _HomeScreenState extends State<HomeScreen> {
   Widget build(BuildContext context) {
     return Scaffold(
       appBar: AppBar(
-        title: const Text('HandWrite2Type'),
+        title: const Text('Scribly'),
         centerTitle: true,
       ),
       body: Center(
         child: Column(
           mainAxisAlignment: MainAxisAlignment.center,
           children: [
-            CustomButton(
-              label: '📸 Scan Handwriting',
+            ElevatedButton.icon(
               onPressed: handleScan,
+              icon: const Icon(Icons.camera_alt),
+              label: Text(isScanning ? 'Scanning...' : '📸 Scan Handwriting'),
             ),
           ],
         ),
